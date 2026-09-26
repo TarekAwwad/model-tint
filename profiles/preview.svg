@@ -1,0 +1,58 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="636" viewBox="0 0 1120 636" role="img" aria-labelledby="title description">
+  <title id="title">Terminal profile suite comparison</title>
+  <desc id="description">Suite 1 uses green, amber, and red backgrounds by model tier. Suite 2 uses purple and rose for Claude, and blue and green for Codex.</desc>
+  <rect width="1120" height="636" rx="20" fill="#10151C" />
+  <text x="30" y="47" fill="#F2F5F8" font-size="23" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Suite 1 · Level colors</text>
+  <text x="30" y="71" fill="#AFB8C5" font-size="15" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Green → amber → red backgrounds; coral Claude cursor, blue Codex cursor</text>
+  <rect x="30" y="90" width="340" height="92" rx="11" fill="#0F2A1D" stroke="#E8875F" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="46" y="105" width="5" height="62" rx="2.5" fill="#E8875F" />
+  <text x="65" y="129" fill="#EDE3D6" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Claude Low</text>
+  <text x="65" y="157" fill="#E8875F" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: sonnet</text>
+  <rect x="390" y="90" width="340" height="92" rx="11" fill="#33260A" stroke="#E8875F" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="406" y="105" width="5" height="62" rx="2.5" fill="#E8875F" />
+  <text x="425" y="129" fill="#EDE3D6" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Claude Mid</text>
+  <text x="425" y="157" fill="#E8875F" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: opus</text>
+  <rect x="750" y="90" width="340" height="92" rx="11" fill="#3A1010" stroke="#E8875F" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="766" y="105" width="5" height="62" rx="2.5" fill="#E8875F" />
+  <text x="785" y="129" fill="#EDE3D6" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Claude High</text>
+  <text x="785" y="157" fill="#E8875F" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: fable</text>
+  <rect x="30" y="195" width="340" height="92" rx="11" fill="#0F2A1D" stroke="#5AA9E6" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="46" y="210" width="5" height="62" rx="2.5" fill="#5AA9E6" />
+  <text x="65" y="234" fill="#D6E4ED" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Codex Low</text>
+  <text x="65" y="262" fill="#5AA9E6" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: luna</text>
+  <rect x="390" y="195" width="340" height="92" rx="11" fill="#33260A" stroke="#5AA9E6" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="406" y="210" width="5" height="62" rx="2.5" fill="#5AA9E6" />
+  <text x="425" y="234" fill="#D6E4ED" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Codex Mid</text>
+  <text x="425" y="262" fill="#5AA9E6" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: sol</text>
+  <rect x="750" y="195" width="340" height="92" rx="11" fill="#3A1010" stroke="#5AA9E6" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="766" y="210" width="5" height="62" rx="2.5" fill="#5AA9E6" />
+  <text x="785" y="234" fill="#D6E4ED" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Codex High</text>
+  <text x="785" y="262" fill="#5AA9E6" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: astra</text>
+  <text x="30" y="353" fill="#F2F5F8" font-size="23" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Suite 2 · App colors</text>
+  <text x="30" y="377" fill="#AFB8C5" font-size="15" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Indigo → rose for Claude; blue → green for Codex</text>
+  <rect x="30" y="396" width="340" height="92" rx="11" fill="#171A28" stroke="#9FA9D7" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="46" y="411" width="5" height="62" rx="2.5" fill="#9FA9D7" />
+  <text x="65" y="435" fill="#E8EAF4" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Claude Low</text>
+  <text x="65" y="463" fill="#9FA9D7" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: sonnet</text>
+  <rect x="390" y="396" width="340" height="92" rx="11" fill="#201A2C" stroke="#C4A2E6" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="406" y="411" width="5" height="62" rx="2.5" fill="#C4A2E6" />
+  <text x="425" y="435" fill="#F0EBF7" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Claude Mid</text>
+  <text x="425" y="463" fill="#C4A2E6" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: opus</text>
+  <rect x="750" y="396" width="340" height="92" rx="11" fill="#2A1929" stroke="#F0A3C5" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="766" y="411" width="5" height="62" rx="2.5" fill="#F0A3C5" />
+  <text x="785" y="435" fill="#F8EDF4" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Claude High</text>
+  <text x="785" y="463" fill="#F0A3C5" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: fable</text>
+  <rect x="30" y="501" width="340" height="92" rx="11" fill="#14222B" stroke="#89BCD5" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="46" y="516" width="5" height="62" rx="2.5" fill="#89BCD5" />
+  <text x="65" y="540" fill="#E7F1F5" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Codex Low</text>
+  <text x="65" y="568" fill="#89BCD5" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: luna</text>
+  <rect x="390" y="501" width="340" height="92" rx="11" fill="#112625" stroke="#70D2C3" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="406" y="516" width="5" height="62" rx="2.5" fill="#70D2C3" />
+  <text x="425" y="540" fill="#E6F5F1" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Codex Mid</text>
+  <text x="425" y="568" fill="#70D2C3" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: sol</text>
+  <rect x="750" y="501" width="340" height="92" rx="11" fill="#19271F" stroke="#A6DF9F" stroke-opacity=".58" stroke-width="1.5" />
+  <rect x="766" y="516" width="5" height="62" rx="2.5" fill="#A6DF9F" />
+  <text x="785" y="540" fill="#EDF7EA" font-size="19" font-weight="600" font-family="SFMono-Regular, Menlo, monospace">Codex High</text>
+  <text x="785" y="568" fill="#A6DF9F" font-size="14" font-family="SFMono-Regular, Menlo, monospace">model: astra</text>
+</svg>
