@@ -1,0 +1,20 @@
+{
+  "name": "model-tint",
+  "version": "2.0.0",
+  "description": "Colour the terminal background by the active Codex model, in macOS Terminal.app and cmux",
+  "author": {
+    "name": "Tarek Awwad"
+  },
+  "homepage": "https://github.com/TarekAwwad/model-tint",
+  "repository": "https://github.com/TarekAwwad/model-tint",
+  "license": "MIT",
+  "keywords": ["terminal", "cmux", "macos", "hooks", "model"],
+  "hooks": "./hooks/codex.json",
+  "interface": {
+    "displayName": "model-tint",
+    "shortDescription": "Colour the terminal by the active model",
+    "longDescription": "Changes the terminal background colour when the Codex model changes, so you can see which model runs in each tab. Works in macOS Terminal.app and cmux. Colours are configurable in ~/.config/model-tint/colors.",
+    "developerName": "Tarek Awwad",
+    "category": "Coding"
+  }
+}

@@ -1,0 +1,16 @@
+# model-tint colours. Copy to ~/.config/model-tint/colors and edit.
+#
+# One "name colour" pair per line. The first line whose name appears in the
+# active model ID wins; matching ignores case. Colours must be #RRGGBB.
+# This file replaces the built-in defaults, so keep every model you use.
+# Lines starting with # are ignored.
+
+# Claude Code
+sonnet  #0F2A1D
+opus    #33260A
+fable   #3A1010
+
+# Codex
+luna    #0F2A1D
+sol     #33260A
+astra   #3A1010
