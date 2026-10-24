@@ -17,7 +17,7 @@ The script prints a standard terminal colour code (OSC 11) into the right tab or
 ## Requirements
 
 - macOS with Terminal.app or cmux
-- Bash and `jq`; Codex in Terminal.app also uses AppleScript (`osascript`)
+- Bash and `jq`; hooks from Codex's shared app-server also use AppleScript (`osascript`) in Terminal.app
 - Claude Code or Codex with command hooks enabled
 
 ## Install
@@ -64,19 +64,19 @@ Add these entries to `~/.codex/config.toml`, merging them with any hooks you alr
 [[hooks.SessionStart]]
 [[hooks.SessionStart.hooks]]
 type = "command"
-command = '"$HOME/model-tint.sh" codex'
+command = '"$HOME/model-tint.sh"'
 timeout = 3
 
 [[hooks.UserPromptSubmit]]
 [[hooks.UserPromptSubmit.hooks]]
 type = "command"
-command = '"$HOME/model-tint.sh" codex'
+command = '"$HOME/model-tint.sh"'
 timeout = 3
 
 [[hooks.SessionEnd]]
 [[hooks.SessionEnd.hooks]]
 type = "command"
-command = '"$HOME/model-tint.sh" codex reset'
+command = '"$HOME/model-tint.sh" reset'
 timeout = 3
 ```
 
@@ -89,10 +89,10 @@ Merge this `hooks` object into `~/.claude/settings.json` (keep any other setting
 ```json
 {
   "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\" claude", "timeout": 3 }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\" claude", "timeout": 3 }] }],
-    "PostModelSwitch": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\" claude", "timeout": 3 }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\" claude reset", "timeout": 3 }] }]
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\"", "timeout": 3 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\"", "timeout": 3 }] }],
+    "PostModelSwitch": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\"", "timeout": 3 }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\" reset", "timeout": 3 }] }]
   }
 }
 ```
@@ -104,7 +104,7 @@ Model-switch updates require Claude Code 2.1.251 or later. See the [hook referen
 v1 switched Terminal.app profiles and was installed as `term-profile.sh`. To upgrade:
 
 1. Install `model-tint.sh` as above.
-2. Update every hook command: `term-profile.sh` becomes `model-tint.sh codex` or `model-tint.sh claude`, and `reset` becomes `codex reset` or `claude reset`. Codex asks you to approve the changed hooks the next time it starts.
+2. In every hook command, replace `term-profile.sh` with `model-tint.sh`. Claude's `reset claude` becomes plain `reset`. Codex asks you to approve the changed hooks the next time it starts.
 3. Restart any Claude Code or Codex sessions that were already running. Sessions keep the hook commands they started with, so until then they still call `term-profile.sh`.
 4. Delete `~/term-profile.sh`.
 5. The imported Terminal profiles are no longer needed. Tabs that v1 switched keep that profile until you change it back.
@@ -114,17 +114,17 @@ v1 remains available at the [`v1.0.0` tag](../../tree/v1.0.0) if you prefer full
 ## Known limitations
 
 - **Codex `/mode`:** the colour updates on the **next submitted prompt**.
-- **Codex targets the focused tab or pane of the front app** (Terminal.app or cmux). Codex can run hooks from a shared background process started in another tab, so its own tty is unreliable. If you switch tabs or apps while its hook runs, the wrong tab can change, including on reset. With any other app in front, Codex hooks change nothing.
-- Claude locates its own tab or pane through the hook process's tty ancestry, so it works in any terminal that supports OSC 11.
+- **Each hook colours the tab or pane its app runs in.** The script walks up from the hook process to the first parent with a terminal, so this works in any terminal that supports OSC 11.
+- **Exception: Codex's shared app-server.** Codex can run hooks from a shared background process (`codex app-server`) started from another tab. Such a hook cannot tell which session it belongs to, so it colours the focused tab or pane of the front app (Terminal.app or cmux) instead. If you switch tabs or apps while it runs, the wrong tab can change, including on reset. With any other app in front, these hooks change nothing.
 - Claude's `SessionStart` can omit the model; the colour then waits for `PostModelSwitch`. `UserPromptSubmit` does not supply the model.
 - Unknown models leave the colour unchanged.
 
 ## Troubleshooting
 
-For diagnostics, run this manual check with the intended Terminal tab or cmux pane focused. With the default colours it applies an amber background:
+For diagnostics, run this manual check in the Terminal tab or cmux pane you want to colour. With the default colours it applies an amber background:
 
 ```bash
-printf '%s\n' '{"model":"gpt-6-sol"}' | MODEL_TINT_DEBUG=1 "$HOME/model-tint.sh" codex
+printf '%s\n' '{"model":"gpt-6-sol"}' | MODEL_TINT_DEBUG=1 "$HOME/model-tint.sh"
 ```
 
 The script is silent by default and creates no logs. Debug mode prints the validated model ID, the target tty and colour, and Terminal or cmux errors to stderr; it does not print prompts or raw payloads.
@@ -143,7 +143,7 @@ Run `python3 -m unittest discover -s tests -v` with Python 3.11+ and `jq`. GitHu
 
 Verified 2026-10-24: regression tests and Bash syntax passed on macOS 26.5.1 (25F80), Bash 3.2.57(1)-release (arm64), jq 1.6, and Python 3.12.13. Installed apps: Claude Code 2.1.310, Codex CLI 0.164.0, and cmux 0.65.2.
 
-Tests stub the terminals, `lsappinfo`, cmux, and Terminal automation. Claude and Codex hooks were checked by hand in both Terminal.app and cmux.
+Tests stub the terminals, `ps`, `lsappinfo`, cmux, and Terminal automation. Checked by hand: Claude and Codex hooks colour and reset their own pane in cmux, even when another pane has focus; Claude and Codex both work in Terminal.app; and Codex in Terminal.app ran its hooks from the shared app-server, with the same process chain the tests use.
 
 ## Uninstall
 

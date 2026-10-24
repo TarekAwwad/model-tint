@@ -16,6 +16,17 @@ SCRIPT = ROOT / "model-tint.sh"
 LOW, MID, HIGH = "#0f2a1d", "#33260a", "#3a1010"
 RESET = "\x1b]111\x07"
 
+# Process chains for the stub `ps`, as "pid|tty|ppid|command" rows. The hook's
+# real parent is unknown to the stub, so it answers with the "start" row.
+OWN_TAB = "start|ttys999|1|claude"
+CODEX_IN_TAB = "start|??|301|/bin/sh -c hook\n301|ttys444|1|codex"
+CODEX_APP_SERVER = (
+    "start|??|201|/x/bin/codex app-server --listen unix://\n"
+    "201|??|202|/x/bin/codex app-server daemon pid-update-loop\n"
+    "202|ttys555|1|codex"
+)
+NO_TTY = "start|??|1|claude -p"
+
 
 def osc_color(color):
     return f"\x1b]11;{color}\x07"
@@ -50,25 +61,33 @@ class HookTests(unittest.TestCase):
         if not jq:
             self.fail("jq is required to run these tests")
         (self.bin / "jq").symlink_to(jq)
-        # Claude's ancestor tty.
-        self.write_command("ps", '''#!/bin/bash
-printf '%s\\n' "${TEST_TTY:-ttys999}"
+        # Answers "ps -o <field>= -p <pid>" from PS_TABLE.
+        self.write_command("ps", r'''#!/bin/bash
+table=${PS_TABLE:-'start|ttys999|1|claude'}
+row=$(printf '%s\n' "$table" | awk -F'|' -v p="$4" '$1 == p')
+[ -n "$row" ] || row=$(printf '%s\n' "$table" | awk -F'|' '$1 == "start"')
+IFS='|' read -r _ tty ppid command <<<"$row"
+case "$2" in
+  tty=) printf '%s\n' "$tty" ;;
+  ppid=) printf '%s\n' "$ppid" ;;
+  command=) printf '%s\n' "$command" ;;
+esac
 ''')
         # Front app: Terminal unless a test says otherwise.
-        self.write_command("lsappinfo", '''#!/bin/bash
+        self.write_command("lsappinfo", r'''#!/bin/bash
 case "$1" in
-  front) printf 'ASN:0x0-0x1:\\n' ;;
-  info) printf '"CFBundleIdentifier"="%s"\\n' "${FRONT_APP-com.apple.Terminal}" ;;
+  front) printf 'ASN:0x0-0x1:\n' ;;
+  info) printf '"CFBundleIdentifier"="%s"\n' "${FRONT_APP-com.apple.Terminal}" ;;
 esac
 ''')
         # Terminal's selected tab.
-        self.write_command("osascript", '''#!/bin/bash
-printf 'automation diagnostic\\n' >&2
+        self.write_command("osascript", r'''#!/bin/bash
+printf 'automation diagnostic\n' >&2
 [ "${AUTOMATION_STATUS:-0}" = 0 ] || exit "$AUTOMATION_STATUS"
-printf '/dev/%s\\n' "${TERMINAL_TTY:-ttys777}"
+printf '/dev/%s\n' "${TERMINAL_TTY:-ttys777}"
 ''')
         # cmux's focused pane, next to an unfocused pane and a browser.
-        self.write_command("cmux", '''#!/bin/bash
+        self.write_command("cmux", r'''#!/bin/bash
 cat <<JSON
 {"windows":[{"workspaces":[{"panes":[
   {"surfaces":[{"ref":"surface:1","type":"terminal","tty":"ttys111","active":false}]},
@@ -91,7 +110,7 @@ JSON
     def written(self):
         return {path.name: path.read_text() for path in self.dev.iterdir()}
 
-    def run_hook(self, payload="{}", args=("codex",), debug=False, **env):
+    def run_hook(self, payload="{}", args=(), debug=False, **env):
         for path in self.dev.iterdir():
             path.unlink()
         run_env = {**self.env, **env}
@@ -109,37 +128,65 @@ JSON
 
     def test_default_colors_and_switch_priority(self):
         cases = [
-            ("claude", {"model": "CLAUDE-SONNET-5"}, {"ttys999": osc_color(LOW)}),
-            ("claude", {"model": "claude-opus-5[1m]"}, {"ttys999": osc_color(MID)}),
-            ("claude", {"model": "claude-fable"}, {"ttys999": osc_color(HIGH)}),
-            ("codex", {"model": "gpt-6-luna"}, {"ttys777": osc_color(LOW)}),
-            ("codex", {"model": "gpt-6-sol"}, {"ttys777": osc_color(MID)}),
-            ("codex", {"model": "gpt-6-astra"}, {"ttys777": osc_color(HIGH)}),
-            ("claude", {"model": "sonnet", "to_model": "opus"}, {"ttys999": osc_color(MID)}),
+            ({"model": "CLAUDE-SONNET-5"}, LOW),
+            ({"model": "claude-opus-5[1m]"}, MID),
+            ({"model": "claude-fable"}, HIGH),
+            ({"model": "gpt-6-luna"}, LOW),
+            ({"model": "gpt-6-sol"}, MID),
+            ({"model": "gpt-6-astra"}, HIGH),
+            ({"model": "sonnet", "to_model": "opus"}, MID),
         ]
-        for app, payload, expected in cases:
+        for payload, color in cases:
             with self.subTest(payload=payload):
-                self.run_hook(json.dumps(payload), args=(app,))
-                self.assertEqual(self.written(), expected)
+                self.run_hook(json.dumps(payload))
+                self.assertEqual(self.written(), {"ttys999": osc_color(color)})
+
+    def test_hooks_colour_their_own_tab_not_the_focused_one(self):
+        for front in ("com.apple.Terminal", "com.cmuxterm.app"):
+            with self.subTest(front=front):
+                self.run_hook('{"model":"gpt-6-sol"}', PS_TABLE=CODEX_IN_TAB, FRONT_APP=front)
+                self.assertEqual(self.written(), {"ttys444": osc_color(MID)})
+                self.run_hook(args=("reset",), PS_TABLE=CODEX_IN_TAB, FRONT_APP=front)
+                self.assertEqual(self.written(), {"ttys444": RESET})
+
+    def test_codex_app_server_hooks_use_the_focused_tab(self):
+        for front, tty in (("com.apple.Terminal", "ttys777"), ("com.cmuxterm.app", "ttys888")):
+            with self.subTest(front=front):
+                self.run_hook('{"model":"gpt-6-sol"}', PS_TABLE=CODEX_APP_SERVER, FRONT_APP=front)
+                self.assertEqual(self.written(), {tty: osc_color(MID)})
+                self.run_hook(args=("reset",), PS_TABLE=CODEX_APP_SERVER, FRONT_APP=front)
+                self.assertEqual(self.written(), {tty: RESET})
+
+    def test_codex_app_server_hooks_skip_other_front_apps(self):
+        for front in ("com.googlecode.iterm2", ""):
+            with self.subTest(front=front):
+                self.run_hook('{"model":"gpt-6-sol"}', PS_TABLE=CODEX_APP_SERVER, FRONT_APP=front)
+                self.assertEqual(self.written(), {})
+
+    def test_hooks_without_a_tty_change_nothing(self):
+        for args in ((), ("reset",)):
+            with self.subTest(args=args):
+                self.run_hook('{"model":"sonnet"}', args=args, PS_TABLE=NO_TTY)
+                self.assertEqual(self.written(), {})
 
     def test_colors_file_replaces_defaults(self):
         self.write_colors("# mine\n\nOPUS   #12AB34  trailing note\nnew-model\t#ABCDEF\n")
-        self.run_hook('{"model":"claude-opus-5"}', args=("claude",))
+        self.run_hook('{"model":"claude-opus-5"}')
         self.assertEqual(self.written(), {"ttys999": osc_color("#12ab34")})
         self.run_hook('{"model":"gpt-7-new-model"}')
-        self.assertEqual(self.written(), {"ttys777": osc_color("#abcdef")})
-        self.run_hook('{"model":"claude-sonnet-5"}', args=("claude",))
+        self.assertEqual(self.written(), {"ttys999": osc_color("#abcdef")})
+        self.run_hook('{"model":"claude-sonnet-5"}')
         self.assertEqual(self.written(), {})
 
     def test_colors_file_honours_xdg_config_home(self):
         config_home = self.root / "xdg"
         self.write_colors("sol #010203\n", config_home)
         self.run_hook('{"model":"gpt-6-sol"}', XDG_CONFIG_HOME=str(config_home))
-        self.assertEqual(self.written(), {"ttys777": osc_color("#010203")})
+        self.assertEqual(self.written(), {"ttys999": osc_color("#010203")})
 
     def test_first_matching_line_wins(self):
         self.write_colors("claude #111111\nopus #222222\n")
-        self.run_hook('{"model":"claude-opus-5"}', args=("claude",))
+        self.run_hook('{"model":"claude-opus-5"}')
         self.assertEqual(self.written(), {"ttys999": osc_color("#111111")})
 
     def test_malformed_color_lines_are_skipped(self):
@@ -148,7 +195,7 @@ JSON
             "opus rgb:12/34/56", "opus $(touch${IFS}pwned)", "opus #123456\x1b]2;x",
             "# opus #999999", "o* #888888", "op?s #777777", "opus #00aa00",
         ]) + "\n")
-        result = self.run_hook('{"model":"claude-opus-5"}', args=("claude",), debug=True)
+        result = self.run_hook('{"model":"claude-opus-5"}', debug=True)
         self.assertEqual(self.written(), {"ttys999": osc_color("#00aa00")})
         self.assertEqual(list(self.root.rglob("pwned")), [])
         self.assertNotIn("\x1b", result.stderr)
@@ -158,29 +205,24 @@ JSON
         path = self.home / ".config" / "model-tint" / "colors"
         path.chmod(0)
         self.addCleanup(path.chmod, 0o600)
-        self.run_hook('{"model":"claude-opus-5"}', args=("claude",))
+        self.run_hook('{"model":"claude-opus-5"}')
         self.assertEqual(self.written(), {})
 
-    def test_codex_uses_the_focused_cmux_pane(self):
-        self.run_hook('{"model":"gpt-6-sol"}', FRONT_APP="com.cmuxterm.app")
-        self.assertEqual(self.written(), {"ttys888": osc_color(MID)})
-        self.run_hook(args=("codex", "reset"), FRONT_APP="com.cmuxterm.app")
-        self.assertEqual(self.written(), {"ttys888": RESET})
-
-    def test_codex_skips_other_front_apps(self):
-        for front in ("com.googlecode.iterm2", ""):
-            with self.subTest(front=front):
-                self.run_hook('{"model":"gpt-6-sol"}', FRONT_APP=front)
-                self.assertEqual(self.written(), {})
-
     def test_invalid_ttys_are_never_written(self):
+        sources = {
+            "own tab": lambda tty: {"PS_TABLE": f"start|{tty}|1|claude"},
+            "Terminal": lambda tty: {"PS_TABLE": CODEX_APP_SERVER, "TERMINAL_TTY": tty},
+            "cmux": lambda tty: {"PS_TABLE": CODEX_APP_SERVER, "FRONT_APP": "com.cmuxterm.app",
+                                 "CMUX_TTY": tty},
+        }
         for tty in ("../escape", "ttys1/../../x", "ttys", "tty.usb", "ttys1 2", "console"):
-            with self.subTest(tty=tty):
-                self.run_hook('{"model":"opus"}', args=("claude",), TEST_TTY=tty)
-                self.run_hook('{"model":"sol"}', TERMINAL_TTY=tty)
-                self.run_hook('{"model":"sol"}', FRONT_APP="com.cmuxterm.app", CMUX_TTY=tty)
-                self.assertEqual(list(self.root.rglob("*escape*")) + list(self.root.rglob("x")), [])
-                self.assertEqual(self.written(), {})
+            for source, env in sources.items():
+                if source == "own tab" and " " in tty:
+                    continue  # ps never prints spaces in a tty name
+                with self.subTest(tty=tty, source=source):
+                    self.run_hook('{"model":"sol"}', **env(tty))
+                    self.assertEqual(self.written(), {})
+                    self.assertEqual(list(self.root.rglob("*escape*")) + list(self.root.rglob("x")), [])
 
     def test_invalid_json_never_changes_a_color(self):
         for payload in (
@@ -215,23 +257,20 @@ JSON
 
     def test_debug_is_opt_in_and_uses_stderr(self):
         payload = json.dumps({"model": "sol", "prompt": "PRIVATE_PROMPT_CONTENT"})
-        self.run_hook(payload)
-        result = self.run_hook(payload, debug=True)
+        self.run_hook(payload, PS_TABLE=CODEX_APP_SERVER)
+        result = self.run_hook(payload, debug=True, PS_TABLE=CODEX_APP_SERVER)
+        self.assertIn("using the focused tab", result.stderr)
         self.assertIn("tty='ttys777' color='#33260a'", result.stderr)
         self.assertIn("automation diagnostic", result.stderr)
         self.assertNotIn("PRIVATE_PROMPT_CONTENT", result.stderr)
         self.assertEqual(list(self.home.iterdir()), [])
 
     def test_reset_and_invalid_arguments(self):
-        for args, expected in (
-            (("codex", "reset"), {"ttys777": RESET}),
-            (("claude", "reset"), {"ttys999": RESET}),
-        ):
-            self.run_hook(args=args)
-            self.assertEqual(self.written(), expected)
+        self.run_hook(args=("reset",))
+        self.assertEqual(self.written(), {"ttys999": RESET})
         for args in (
-            (), ("bad",), ("reset",), ("reset", "codex"), ("claude", "extra"),
-            ("codex", "bad\nFORGED"), ("codex", "reset", "extra"),
+            ("bad",), ("codex",), ("claude", "reset"), ("reset", "codex"),
+            ("reset", "bad\nFORGED"), ("reset", "extra", "more"),
         ):
             with self.subTest(args=args):
                 result = self.run_hook('{"model":"sol"}', args=args, debug=True)
@@ -239,7 +278,7 @@ JSON
                 self.assertNotIn("FORGED", result.stderr)
 
     def test_missing_jq_and_automation_failure_stay_quiet(self):
-        self.run_hook('{"model":"sol"}', AUTOMATION_STATUS="1")
+        self.run_hook('{"model":"sol"}', PS_TABLE=CODEX_APP_SERVER, AUTOMATION_STATUS="1")
         self.assertEqual(self.written(), {})
         (self.bin / "jq").unlink()
         self.env["PATH"] = str(self.bin)
@@ -249,21 +288,9 @@ JSON
     def test_unwritable_tty_stays_quiet(self):
         self.dev.chmod(0o500)
         self.addCleanup(self.dev.chmod, 0o700)
-        result = self.run_hook('{"model":"opus"}', args=("claude",), debug=True)
+        result = self.run_hook('{"model":"opus"}', debug=True)
         self.assertIn("colour change failed", result.stderr)
-        self.run_hook('{"model":"opus"}', args=("claude",))
-
-    def test_claude_without_a_tty_does_not_change_another_tab(self):
-        self.write_command("ps", '''#!/bin/bash
-case "$2" in
-  tty=) printf '??\\n' ;;
-  ppid=) printf '1\\n' ;;
-esac
-''')
-        for args in (("claude",), ("claude", "reset")):
-            with self.subTest(args=args):
-                self.run_hook('{"model":"sonnet"}', args=args)
-                self.assertEqual(self.written(), {})
+        self.run_hook('{"model":"opus"}')
 
     def test_all_documented_hooks_have_three_second_timeouts(self):
         expected_events = {
@@ -280,16 +307,17 @@ esac
                         with self.subTest(app=app, event=event):
                             self.assertEqual(hook["timeout"], 3)
 
-    def test_readme_commands_name_their_app_and_work_with_spaces_in_home(self):
+    def test_readme_commands_reset_on_session_end_and_work_with_spaces_in_home(self):
         installed = self.home / "model-tint.sh"
         shutil.copyfile(SCRIPT, installed)
         installed.chmod(0o700)
-        for app, config in readme_hook_configs().items():
+        for config in readme_hook_configs().values():
             for event, groups in config["hooks"].items():
                 for group in groups:
                     for hook in group["hooks"]:
                         with self.subTest(event=event, command=hook["command"]):
-                            self.assertIn(f"model-tint.sh\" {app}", hook["command"])
+                            reset = " reset" if event == "SessionEnd" else ""
+                            self.assertEqual(hook["command"], f'"$HOME/model-tint.sh"{reset}')
                             for path in self.dev.iterdir():
                                 path.unlink()
                             result = subprocess.run(

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # model-tint: colour the terminal background by the active Claude Code or Codex model.
-# Usage: model-tint.sh <claude|codex> [reset], with the hook payload on stdin.
+# Usage: model-tint.sh [reset], with the hook payload on stdin.
 
 # Hooks stay quiet by default. Enable diagnostics only for manual troubleshooting.
 # No log files are created or opened.
@@ -50,9 +50,11 @@ color_for_model() {
   return 1
 }
 
-# Claude hooks can run without a controlling tty. Walk up to the first parent
-# with one; that is the tab or pane Claude runs in.
-ancestor_tty() {
+# Hooks can run without a controlling tty. Walk up to the first parent with
+# one; that is the tab or pane the app runs in. Return 2 instead when the hook
+# came from Codex's shared app-server: its parents belong to whichever tab
+# first started it, not to the session that ran the hook.
+own_tty() {
   local pid=$PPID current_tty
 
   while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null; do
@@ -61,6 +63,9 @@ ancestor_tty() {
       printf '%s\n' "$current_tty"
       return 0
     fi
+    case "$(ps -o command= -p "$pid" 2>/dev/null)" in
+      *app-server*) return 2 ;;
+    esac
     pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')
   done
   return 1
@@ -74,9 +79,8 @@ cmux_cli() {
   fi
 }
 
-# Codex can run hooks from a shared background process started in another tab,
-# so its own tty and environment are unreliable. Use the focused tab or pane of
-# the front app instead.
+# Hooks from Codex's shared app-server cannot tell which session they belong
+# to, so use the focused tab or pane of the front app instead.
 focused_tty() {
   local tty
   case "$(lsappinfo info -only bundleid "$(lsappinfo front)" 2>/dev/null)" in
@@ -111,30 +115,25 @@ set_background() {
 }
 
 apply_color() {
-  local app=$1 color=$2 tty
-  if [ "$app" = claude ]; then
-    tty=$(ancestor_tty)
-  else
+  local color=$1 tty status
+  tty=$(own_tty)
+  status=$?
+  if [ "$status" -eq 2 ]; then
+    log_message 'hook came from the Codex app-server; using the focused tab'
     tty=$(focused_tty)
   fi
   if [ -z "$tty" ]; then
-    log_message "$app: no tab found"
+    log_message 'no tab found'
     return 0
   fi
-  log_message "app='$app' tty='$tty' color='${color:-default}'"
+  log_message "tty='$tty' color='${color:-default}'"
   set_background "$tty" "$color"
 }
 
-app=${1:-}
-case "$app" in
-  claude|codex) ;;
-  *) log_message 'usage: model-tint.sh <claude|codex> [reset]'; exit 0 ;;
-esac
-
-case "$#:${2:-}" in
-  1:) ;;
-  2:reset)
-    apply_color "$app" '' || log_message 'colour reset failed'
+case "$#:${1:-}" in
+  0:) ;;
+  1:reset)
+    apply_color '' || log_message 'colour reset failed'
     exit 0
     ;;
   *)
@@ -169,6 +168,6 @@ if ! color=$(color_for_model "$model"); then
   exit 0
 fi
 
-log_message "model='$model' app='$app'"
-apply_color "$app" "$color" || log_message 'colour change failed'
+log_message "model='$model'"
+apply_color "$color" || log_message 'colour change failed'
 exit 0
