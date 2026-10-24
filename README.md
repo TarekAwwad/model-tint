@@ -22,43 +22,44 @@ The script prints a standard terminal colour code (OSC 11) into the right tab or
 
 ## Install
 
-From this repository:
+Make sure `jq` is installed and available on the `PATH` seen by hooks. Then install the plugin for Claude Code, Codex, or both.
+
+### Claude Code
+
+```
+/plugin install model-tint --marketplace TarekAwwad/model-tint
+```
+
+On Claude Code older than 2.1.275, add the marketplace first:
+
+```
+/plugin marketplace add TarekAwwad/model-tint
+/plugin install model-tint@model-tint
+```
+
+Model-switch updates require Claude Code 2.1.251 or later. See the [hook reference](https://code.claude.com/docs/en/hooks).
+
+### Codex
+
+```bash
+codex plugin marketplace add TarekAwwad/model-tint
+codex plugin add model-tint@model-tint
+```
+
+Restart Codex. When **Hooks need review** appears, trust the three model-tint hooks; Codex runs no plugin hook before you do. Codex records trust against each hook's hash, so a plugin update can ask again.
+
+The first time a hook from Codex's shared app-server runs in Terminal.app, macOS may ask for automation permission; allow the app running the hook to control Terminal.
+
+### Manual install
+
+Without plugins, copy the script and add the hooks yourself:
 
 ```bash
 cp model-tint.sh "$HOME/model-tint.sh"
 chmod +x "$HOME/model-tint.sh"
 ```
 
-Make sure `jq` is installed and available on the `PATH` seen by hooks. The first time Codex runs in Terminal.app, macOS may ask for automation permission; allow the app running the hook to control Terminal.
-
-Then add the hooks for [Codex](#codex-hooks), [Claude Code](#claude-code-hooks), or both.
-
-## Choose your colours
-
-The defaults above work without any setup. To use your own colours or add new models, create a colours file:
-
-```bash
-mkdir -p ~/.config/model-tint
-cp colors.example ~/.config/model-tint/colors
-```
-
-Each line pairs a name with a background colour:
-
-```
-opus    #33260A
-sonnet  #0F2A1D
-```
-
-- The first line whose name appears in the model ID wins. Matching ignores case.
-- Colours must be `#RRGGBB`. Lines that don't fit are skipped.
-- The file replaces the defaults, so list every model you use.
-- When a new model comes out, add a line; no script update is needed.
-
-If `XDG_CONFIG_HOME` is set in the hooks' environment, the file is read from `$XDG_CONFIG_HOME/model-tint/colors` instead.
-
-## Codex hooks
-
-Add these entries to `~/.codex/config.toml`, merging them with any hooks you already have:
+For Codex, add these entries to `~/.codex/config.toml`, merging them with any hooks you already have:
 
 ```toml
 [[hooks.SessionStart]]
@@ -80,31 +81,49 @@ command = '"$HOME/model-tint.sh" reset'
 timeout = 3
 ```
 
-Codex may ask you to review or trust these hooks before it runs them. Restart Codex to try the configuration.
-
-## Claude Code hooks
-
-Merge this `hooks` object into `~/.claude/settings.json` (keep any other settings already there):
+For Claude Code, merge this `hooks` object into `~/.claude/settings.json`, keeping any other settings already there:
 
 ```json
 {
   "hooks": {
     "SessionStart": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\"", "timeout": 3 }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\"", "timeout": 3 }] }],
     "PostModelSwitch": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\"", "timeout": 3 }] }],
     "SessionEnd": [{ "hooks": [{ "type": "command", "command": "\"$HOME/model-tint.sh\" reset", "timeout": 3 }] }]
   }
 }
 ```
 
-Model-switch updates require Claude Code 2.1.251 or later. See the [hook reference](https://code.claude.com/docs/en/hooks).
+Running sessions keep the hook commands they started with, so restart them afterwards.
+
+## Choose your colours
+
+The defaults above work without any setup. To use your own colours or add new models, create a colours file. Download [`colors.example`](colors.example) from this repository, then:
+
+```bash
+mkdir -p ~/.config/model-tint
+cp colors.example ~/.config/model-tint/colors
+```
+
+Each line pairs a name with a background colour:
+
+```
+opus    #33260A
+sonnet  #0F2A1D
+```
+
+- The first line whose name appears in the model ID wins. Matching ignores case.
+- Colours must be `#RRGGBB`. Lines that don't fit are skipped.
+- The file replaces the defaults, so list every model you use.
+- When a new model comes out, add a line; no script update is needed.
+
+If `XDG_CONFIG_HOME` is set in the hooks' environment, the file is read from `$XDG_CONFIG_HOME/model-tint/colors` instead.
 
 ## Upgrading from v1 (Terminal Model Profile Switcher)
 
 v1 switched Terminal.app profiles and was installed as `term-profile.sh`. To upgrade:
 
-1. Install `model-tint.sh` as above.
-2. In every hook command, replace `term-profile.sh` with `model-tint.sh`. Claude's `reset claude` becomes plain `reset`. Codex asks you to approve the changed hooks the next time it starts.
+1. Remove the v1 hook entries from `~/.codex/config.toml` and `~/.claude/settings.json`.
+2. Install model-tint as above.
 3. Restart any Claude Code or Codex sessions that were already running. Sessions keep the hook commands they started with, so until then they still call `term-profile.sh`.
 4. Delete `~/term-profile.sh`.
 5. The imported Terminal profiles are no longer needed. Tabs that v1 switched keep that profile until you change it back.
@@ -116,15 +135,15 @@ v1 remains available at the [`v1.0.0` tag](../../tree/v1.0.0) if you prefer full
 - **Codex `/mode`:** the colour updates on the **next submitted prompt**.
 - **Each hook colours the tab or pane its app runs in.** The script walks up from the hook process to the first parent with a terminal, so this works in any terminal that supports OSC 11.
 - **Exception: Codex's shared app-server.** Codex can run hooks from a shared background process (`codex app-server`) started from another tab. Such a hook cannot tell which session it belongs to, so it colours the focused tab or pane of the front app (Terminal.app or cmux) instead. If you switch tabs or apps while it runs, the wrong tab can change, including on reset. With any other app in front, these hooks change nothing.
-- Claude's `SessionStart` can omit the model; the colour then waits for `PostModelSwitch`. `UserPromptSubmit` does not supply the model.
+- Claude's `SessionStart` can omit the model; the colour then waits for `PostModelSwitch`.
 - Unknown models leave the colour unchanged.
 
 ## Troubleshooting
 
-For diagnostics, run this manual check in the Terminal tab or cmux pane you want to colour. With the default colours it applies an amber background:
+For diagnostics, run this manual check from a clone of this repository, in the Terminal tab or cmux pane you want to colour. With the default colours it applies an amber background:
 
 ```bash
-printf '%s\n' '{"model":"gpt-6-sol"}' | MODEL_TINT_DEBUG=1 "$HOME/model-tint.sh"
+printf '%s\n' '{"model":"gpt-6-sol"}' | MODEL_TINT_DEBUG=1 ./model-tint.sh
 ```
 
 The script is silent by default and creates no logs. Debug mode prints the validated model ID, the target tty and colour, and Terminal or cmux errors to stderr; it does not print prompts or raw payloads.
@@ -143,16 +162,20 @@ Run `python3 -m unittest discover -s tests -v` with Python 3.11+ and `jq`. GitHu
 
 Verified 2026-10-24: regression tests and Bash syntax passed on macOS 26.5.1 (25F80), Bash 3.2.57(1)-release (arm64), jq 1.6, and Python 3.12.13. Installed apps: Claude Code 2.1.310, Codex CLI 0.164.0, and cmux 0.65.2.
 
-Tests stub the terminals, `ps`, `lsappinfo`, cmux, and Terminal automation. Checked by hand: Claude and Codex hooks colour and reset their own pane in cmux, even when another pane has focus; Claude and Codex both work in Terminal.app; and Codex in Terminal.app ran its hooks from the shared app-server, with the same process chain the tests use.
+Tests stub the terminals, `ps`, `lsappinfo`, cmux, and Terminal automation. Checked by hand: Claude and Codex hooks colour and reset their own pane in cmux, even when another pane has focus; Claude and Codex both work in Terminal.app; Codex in Terminal.app ran its hooks from the shared app-server, with the same process chain the tests use; and both plugins, installed from a local checkout, coloured and reset their own cmux pane.
 
 ## Uninstall
 
-Remove the hook entries above from `~/.codex/config.toml` and `~/.claude/settings.json`, then remove the installed script and any colours file:
+Plugins:
 
 ```bash
-rm "$HOME/model-tint.sh"
-rm -r ~/.config/model-tint
+claude plugin uninstall model-tint@model-tint
+codex plugin remove model-tint@model-tint
 ```
+
+Manual install: remove the hook entries from `~/.codex/config.toml` and `~/.claude/settings.json`, then delete `~/model-tint.sh`.
+
+Either way, delete your colours file if you made one: `rm -r ~/.config/model-tint`.
 
 ## License
 

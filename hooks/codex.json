@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "\"${PLUGIN_ROOT}/model-tint.sh\"", "timeout": 3 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"${PLUGIN_ROOT}/model-tint.sh\"", "timeout": 3 }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "\"${PLUGIN_ROOT}/model-tint.sh\" reset", "timeout": 3 }] }]
+  }
+}

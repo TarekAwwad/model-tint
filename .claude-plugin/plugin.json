@@ -1,0 +1,12 @@
+{
+  "name": "model-tint",
+  "description": "Colour the terminal background by the active Claude Code model, in macOS Terminal.app and cmux",
+  "version": "2.0.0",
+  "author": {
+    "name": "Tarek Awwad"
+  },
+  "homepage": "https://github.com/TarekAwwad/model-tint",
+  "repository": "https://github.com/TarekAwwad/model-tint",
+  "license": "MIT",
+  "keywords": ["terminal", "cmux", "macos", "hooks", "model"]
+}

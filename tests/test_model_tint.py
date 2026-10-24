@@ -1,6 +1,7 @@
 """Exercise the actual hook script with terminals and app lookups replaced by stubs."""
 
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -32,11 +33,27 @@ def osc_color(color):
     return f"\x1b]11;{color}\x07"
 
 
-def readme_hook_configs():
+CLAUDE_EVENTS = {"SessionStart", "PostModelSwitch", "SessionEnd"}
+CODEX_EVENTS = {"SessionStart", "UserPromptSubmit", "SessionEnd"}
+
+
+def read_json(path):
+    return json.loads((ROOT / path).read_text())
+
+
+def hook_configs():
+    """Every documented hook setup: its hooks, expected events, and script path."""
     readme = (ROOT / "README.md").read_text()
     return {
-        "codex": tomllib.loads(re.search(r"```toml\n(.*?)\n```", readme, re.S)[1]),
-        "claude": json.loads(re.search(r"```json\n(.*?)\n```", readme, re.S)[1]),
+        "manual Codex": (
+            tomllib.loads(re.search(r"```toml\n(.*?)\n```", readme, re.S)[1]),
+            CODEX_EVENTS, "$HOME/model-tint.sh"),
+        "manual Claude Code": (
+            json.loads(re.search(r"```json\n(.*?)\n```", readme, re.S)[1]),
+            CLAUDE_EVENTS, "$HOME/model-tint.sh"),
+        "Codex plugin": (read_json("hooks/codex.json"), CODEX_EVENTS, "${PLUGIN_ROOT}/model-tint.sh"),
+        "Claude Code plugin": (
+            read_json("hooks/hooks.json"), CLAUDE_EVENTS, "${CLAUDE_PLUGIN_ROOT}/model-tint.sh"),
     }
 
 
@@ -56,6 +73,7 @@ class HookTests(unittest.TestCase):
             "HOME": str(self.home),
             "TMPDIR": str(self.root),
             "MODEL_TINT_DEV_DIR": str(self.dev),
+            "PS_TABLE": OWN_TAB,
         }
         jq = shutil.which("jq")
         if not jq:
@@ -63,9 +81,8 @@ class HookTests(unittest.TestCase):
         (self.bin / "jq").symlink_to(jq)
         # Answers "ps -o <field>= -p <pid>" from PS_TABLE.
         self.write_command("ps", r'''#!/bin/bash
-table=${PS_TABLE:-'start|ttys999|1|claude'}
-row=$(printf '%s\n' "$table" | awk -F'|' -v p="$4" '$1 == p')
-[ -n "$row" ] || row=$(printf '%s\n' "$table" | awk -F'|' '$1 == "start"')
+row=$(printf '%s\n' "$PS_TABLE" | awk -F'|' -v p="$4" '$1 == p')
+[ -n "$row" ] || row=$(printf '%s\n' "$PS_TABLE" | awk -F'|' '$1 == "start"')
 IFS='|' read -r _ tty ppid command <<<"$row"
 case "$2" in
   tty=) printf '%s\n' "$tty" ;;
@@ -292,42 +309,50 @@ JSON
         self.assertIn("colour change failed", result.stderr)
         self.run_hook('{"model":"opus"}')
 
-    def test_all_documented_hooks_have_three_second_timeouts(self):
-        expected_events = {
-            "codex": {"SessionStart", "UserPromptSubmit", "SessionEnd"},
-            "claude": {"SessionStart", "UserPromptSubmit", "PostModelSwitch", "SessionEnd"},
-        }
-        for app, config in readme_hook_configs().items():
-            self.assertEqual(set(config["hooks"]), expected_events[app])
+    def test_documented_hooks_have_the_right_events_commands_and_timeouts(self):
+        for setup, (config, events, script) in hook_configs().items():
+            with self.subTest(setup=setup):
+                self.assertEqual(set(config["hooks"]), events)
             for event, groups in config["hooks"].items():
-                self.assertTrue(groups)
-                for group in groups:
-                    self.assertTrue(group["hooks"])
-                    for hook in group["hooks"]:
-                        with self.subTest(app=app, event=event):
-                            self.assertEqual(hook["timeout"], 3)
+                with self.subTest(setup=setup, event=event):
+                    hooks = [hook for group in groups for hook in group["hooks"]]
+                    reset = " reset" if event == "SessionEnd" else ""
+                    self.assertEqual([hook["command"] for hook in hooks], [f'"{script}"{reset}'])
+                    self.assertEqual([hook["timeout"] for hook in hooks], [3])
 
-    def test_readme_commands_reset_on_session_end_and_work_with_spaces_in_home(self):
+    def test_documented_hook_commands_run_with_spaces_in_paths(self):
         installed = self.home / "model-tint.sh"
         shutil.copyfile(SCRIPT, installed)
         installed.chmod(0o700)
-        for config in readme_hook_configs().values():
+        env = {**self.env, "PLUGIN_ROOT": str(self.home), "CLAUDE_PLUGIN_ROOT": str(self.home)}
+        for setup, (config, _, _) in hook_configs().items():
             for event, groups in config["hooks"].items():
-                for group in groups:
-                    for hook in group["hooks"]:
-                        with self.subTest(event=event, command=hook["command"]):
-                            reset = " reset" if event == "SessionEnd" else ""
-                            self.assertEqual(hook["command"], f'"$HOME/model-tint.sh"{reset}')
-                            for path in self.dev.iterdir():
-                                path.unlink()
-                            result = subprocess.run(
-                                ["/bin/bash", "-c", hook["command"]],
-                                input='{"model":"sol"}', text=True,
-                                capture_output=True, env=self.env, timeout=5,
-                            )
-                            self.assertEqual(result.returncode, 0, result.stderr)
-                            self.assertEqual(result.stdout + result.stderr, "")
-                            self.assertTrue(self.written())
+                for hook in (hook for group in groups for hook in group["hooks"]):
+                    with self.subTest(setup=setup, event=event):
+                        for path in self.dev.iterdir():
+                            path.unlink()
+                        result = subprocess.run(
+                            ["/bin/bash", "-c", hook["command"]],
+                            input='{"model":"sol"}', text=True,
+                            capture_output=True, env=env, timeout=5,
+                        )
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stdout + result.stderr, "")
+                        self.assertTrue(self.written())
+
+    def test_plugin_manifests_agree(self):
+        claude = read_json(".claude-plugin/plugin.json")
+        codex = read_json(".codex-plugin/plugin.json")
+        self.assertEqual(claude["name"], codex["name"])
+        self.assertEqual(claude["version"], codex["version"])
+        self.assertEqual((ROOT / codex["hooks"]).resolve(), (ROOT / "hooks/codex.json").resolve())
+        for marketplace in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+            with self.subTest(marketplace=marketplace):
+                manifest = read_json(marketplace)
+                self.assertEqual(manifest["name"], claude["name"])
+                self.assertEqual([plugin["name"] for plugin in manifest["plugins"]], [claude["name"]])
+        # Plugins run the script straight from the repository checkout.
+        self.assertTrue(os.access(SCRIPT, os.X_OK))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,14 @@
+{
+  "name": "model-tint",
+  "description": "model-tint: colour the terminal background by the active model",
+  "owner": {
+    "name": "Tarek Awwad"
+  },
+  "plugins": [
+    {
+      "name": "model-tint",
+      "source": "./",
+      "description": "Colour the terminal background by the active Claude Code model, in macOS Terminal.app and cmux"
+    }
+  ]
+}
