@@ -103,9 +103,11 @@ Model-switch updates require Claude Code 2.1.251 or later. See the [hook referen
 
 v1 switched Terminal.app profiles and was installed as `term-profile.sh`. To upgrade:
 
-1. Install `model-tint.sh` as above and delete `~/term-profile.sh`.
-2. Update every hook command: `term-profile.sh` becomes `model-tint.sh codex` or `model-tint.sh claude`, and `reset` becomes `codex reset` or `claude reset`.
-3. The imported Terminal profiles are no longer needed. Tabs that v1 switched keep that profile until you change it back.
+1. Install `model-tint.sh` as above.
+2. Update every hook command: `term-profile.sh` becomes `model-tint.sh codex` or `model-tint.sh claude`, and `reset` becomes `codex reset` or `claude reset`. Codex asks you to approve the changed hooks the next time it starts.
+3. Restart any Claude Code or Codex sessions that were already running. Sessions keep the hook commands they started with, so until then they still call `term-profile.sh`.
+4. Delete `~/term-profile.sh`.
+5. The imported Terminal profiles are no longer needed. Tabs that v1 switched keep that profile until you change it back.
 
 v1 remains available at the [`v1.0.0` tag](../../tree/v1.0.0) if you prefer full Terminal profiles (fonts and cursor colours).
 
